@@ -2,8 +2,9 @@ import socket
 import sys
 import threading
 import queue
-import time
 import hashlib
+import time
+max_timeout=5
 locker=threading.Lock()
 queues=dict()
 server=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -21,7 +22,13 @@ def q(adr, msg):
         print("Чексумма не совпала. Оповещаю отправителя и жду переотправки пакета")
         server.sendto("1".encode('utf-8'), adr)
         recv_list.append(adr)
+        set_timer=time.time()
         while adr in recv_list:
+            if time.time()-set_timer>max_timeout:
+                print("Превышено время ожидания от", adr)
+                recv_list.remove(adr)
+                connections.remove(adr)
+                return
             pass
         response=recv_dict[adr]
         msg=response[32:]
@@ -38,6 +45,7 @@ def q(adr, msg):
             queues[queue_name]=queue.Queue()
         locker.release()
         print("Сообщение '", queue_msg, "' от ", adr, " в очередь ", queue_name, sep='')
+        locker.acquire()
         queues[queue_name].join
         try:
             queues[queue_name].put(queue_msg)
@@ -46,26 +54,34 @@ def q(adr, msg):
             return
         finally:
             server.sendto("SERVER: Успешное добавление в очередь".encode('utf-8'), adr)
+        locker.release()
     else:
         queue_name=msg
         if queue_name not in queues:
             server.sendto(("SERVER: Нет такой очереди").encode('utf-8'), adr)
             return
         print(adr, "берет из очереди", queue_name, )
+        locker.acquire()
         queues[queue_name].join
         try:
             msg=queues[queue_name].get(block=True)
         except:
             server.sendto(("SERVER: Невозможно получить из очереди").encode('utf-8'), adr)
             return
+        locker.release()
         checksum = hashlib.md5(msg.encode('utf-8')).hexdigest()
         msg=str(checksum)+msg
         print("Попытка послать сообщение клиенту")
         while True:
             server.sendto(msg.encode('utf-8'), adr)
             recv_list.append(adr)
+            set_timer=time.time()
             while adr in recv_list:
-                pass
+                if time.time()-set_timer>max_timeout:
+                    print("Превышено время ожидания от", adr)
+                    recv_list.remove(adr)
+                    connections.remove(adr)
+                    return
             if recv_dict[adr]=="0":
                 print("Успешно!")
                 break
@@ -84,5 +100,7 @@ while True:
     if adr in recv_list:
         recv_dict[adr]=msg
         recv_list.remove(adr)
+    if (msg=="0" or msg=="1")and adr not in recv_list:
+        pass
     else:
         t = threading.Thread(target=q, args=(adr, msg)).start()

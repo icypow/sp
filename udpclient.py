@@ -2,8 +2,10 @@ import socket
 import sys
 import threading
 import hashlib
+import time
 client=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 locker=threading.Lock()
+client.settimeout(5)
 i=5
 while True:
     msg=input()
@@ -15,10 +17,18 @@ while True:
         #     i-=1
         # else:
         client.sendto((msg).encode('utf-8'), (sys.argv[1], int(sys.argv[2])))
-        response=client.recv(1024).decode('utf-8')
+        try:
+            response=client.recv(1024).decode('utf-8')
+        except socket.timeout:
+            print('Превышено время ожидания ответа сервера1')
+            exit()
         if response=="0":
             break
-    response=client.recv(1024).decode('utf-8')
+    try:
+        response=client.recv(1024).decode('utf-8')
+    except socket.timeout:
+            print('Превышено время ожидания ответа сервера2')
+            exit()
     if response[:6]=="SERVER":
         print(response)
     else:
@@ -33,5 +43,6 @@ while True:
             income_checksum=response[:32]
             checksum = hashlib.md5(msg.encode('utf-8')).hexdigest()
         print("UDP-INFO: Чексумма совпала! Беру сообщения в оборот")
+        #time.sleep(10)
         client.sendto("0".encode('utf-8'), (sys.argv[1], int(sys.argv[2])))
         print(msg)
