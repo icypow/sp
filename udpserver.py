@@ -10,8 +10,10 @@ queues=dict()
 server=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 server.bind(((sys.argv[1]), int(sys.argv[2])))
 connections=list()
+names=list()
 recv_list=list()
 recv_dict=dict()
+
 def q(adr, msg):
     global recv_dict
     global recv_list
@@ -29,7 +31,6 @@ def q(adr, msg):
                 recv_list.remove(adr)
                 connections.remove(adr)
                 return
-            pass
         response=recv_dict[adr]
         msg=response[32:]
         income_checksum=response[:32]
@@ -92,15 +93,23 @@ def q(adr, msg):
         locker.release()
 while True:
     msg, adr=server.recvfrom(1024)
+    print(adr)
     if adr not in connections:
-        print(adr, "connected")
+        name=msg.decode('utf-8')
+        if name in names:
+            server.sendto("0".encode('utf-8'), adr)
+            continue
+        server.sendto("1".encode('utf-8'), adr)
+        print(name, "connected")
         connections.append(adr)
+        names.append(name)
+        continue
     msg = msg.decode('utf-8')
     #print("FIRST IN", msg)
     if adr in recv_list:
         recv_dict[adr]=msg
         recv_list.remove(adr)
     if (msg=="0" or msg=="1")and adr not in recv_list:
-        pass
+        continue
     else:
         t = threading.Thread(target=q, args=(adr, msg)).start()

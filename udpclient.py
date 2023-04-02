@@ -7,6 +7,16 @@ client=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 locker=threading.Lock()
 client.settimeout(5)
 i=5
+name=sys.argv[3]
+client.sendto((name).encode('utf-8'), (sys.argv[1], int(sys.argv[2])))
+try:
+    response=client.recv(1024).decode('utf-8')
+except socket.timeout:
+    print('Превышено время ожидания ответа сервера1')
+    exit()
+if response=="0":
+    print("Клиент с таким именем уже подключался")
+    exit()
 while True:
     msg=input()
     checksum = hashlib.md5(msg.encode('utf-8')).hexdigest()
